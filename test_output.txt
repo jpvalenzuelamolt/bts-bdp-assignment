@@ -1,0 +1,332 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-7.4.4, pluggy-1.6.0 -- C:\Users\jpval\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\jpval\bts-bdp-assignment-1
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.23.8, cov-4.1.0, env-0.8.2
+asyncio: mode=Mode.AUTO
+collecting ... collected 1 item
+
+tests/s5/test_s5.py::TestS5Student::test_example FAILED                  [100%]
+
+================================== FAILURES ===================================
+_________________________ TestS5Student.test_example __________________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x00000260AB4E3CB0>
+dialect = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000260AB4E2CF0>
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000260AB5601A0>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x00000260AB560050>
+parameters = [()]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000260AB4E2CF0>
+cursor = <sqlite3.Cursor object at 0x00000260AB4EBEC0>
+statement = '\n-- Drop tables in reverse dependency order (child tables first)\nDROP TABLE IF EXISTS salary_history;\nDROP TABLE I...ect_id ON employee_project(project_id);\nCREATE INDEX idx_salary_history_employee_id ON salary_history(employee_id);\n'
+parameters = ()
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000260AB5601A0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlite3.ProgrammingError: You can only execute one statement at a time.
+
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\default.py:952: ProgrammingError
+
+The above exception was the direct cause of the following exception:
+
+self = <tests.s5.test_s5.TestS5Student object at 0x00000260AB4B11D0>
+client = <starlette.testclient.TestClient object at 0x00000260AB437230>
+
+    def test_example(self, client: TestClient) -> None:
+        with client as client:
+>           response = client.post("/api/s5/db/init")
+
+tests\s5\test_s5.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:546: in post
+    return super().post(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:1144: in post
+    return self.request(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:445: in request
+    return super().request(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:914: in send
+    response = self._send_handling_auth(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\httpx\_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:348: in handle_request
+    raise exc
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\testclient.py:345: in handle_request
+    portal.call(self.app, scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\from_thread.py:334: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+..\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py:456: in result
+    return self.__get_result()
+..\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py:401: in __get_result
+    raise self._exception
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\from_thread.py:259: in _call_func
+    retval = await retval_or_awaitable
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\applications.py:1160: in __call__
+    await super().__call__(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\applications.py:107: in __call__
+    await self.middleware_stack(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py:716: in __call__
+    await self.middleware_stack(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py:736: in app
+    await route.handle(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\routing.py:290: in handle
+    await self.app(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:130: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:116: in app
+    response = await f(request)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:670: in app
+    raw_response = await run_endpoint_function(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\routing.py:326: in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\concurrency.py:32: in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\to_thread.py:63: in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\_backends\_asyncio.py:2502: in run_sync_in_worker_thread
+    return await future
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\anyio\_backends\_asyncio.py:986: in run
+    result = context.run(func, *args)
+bdi_api\s5\exercise.py:223: in init_database
+    conn.execute(text(schema_sql))
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py:1419: in execute
+    return meth(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\sql\elements.py:527: in _execute_on_connection
+    return connection._execute_clauseelement(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py:1846: in _execute_context
+    return self._exec_single_context(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py:2363: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x00000260AB4E2CF0>
+cursor = <sqlite3.Cursor object at 0x00000260AB4EBEC0>
+statement = '\n-- Drop tables in reverse dependency order (child tables first)\nDROP TABLE IF EXISTS salary_history;\nDROP TABLE I...ect_id ON employee_project(project_id);\nCREATE INDEX idx_salary_history_employee_id ON salary_history(employee_id);\n'
+parameters = ()
+context = <sqlalchemy.dialects.sqlite.base.SQLiteExecutionContext object at 0x00000260AB5601A0>
+
+    def do_execute(self, cursor, statement, parameters, context=None):
+>       cursor.execute(statement, parameters)
+E       sqlalchemy.exc.ProgrammingError: (sqlite3.ProgrammingError) You can only execute one statement at a time.
+E       [SQL: 
+E       -- Drop tables in reverse dependency order (child tables first)
+E       DROP TABLE IF EXISTS salary_history;
+E       DROP TABLE IF EXISTS employee_project;
+E       DROP TABLE IF EXISTS project;
+E       DROP TABLE IF EXISTS employee;
+E       DROP TABLE IF EXISTS department;
+E       
+E       -- Create department table
+E       CREATE TABLE department (
+E           id INTEGER PRIMARY KEY AUTOINCREMENT,
+E           name TEXT NOT NULL,
+E           location TEXT
+E       );
+E       
+E       -- Create employee table
+E       CREATE TABLE employee (
+E           id INTEGER PRIMARY KEY AUTOINCREMENT,
+E           first_name TEXT NOT NULL,
+E           last_name TEXT NOT NULL,
+E           email TEXT UNIQUE NOT NULL,
+E           salary REAL NOT NULL,
+E           department_id INTEGER NOT NULL,
+E           hire_date DATE NOT NULL,
+E           FOREIGN KEY (department_id) REFERENCES department(id)
+E       );
+E       
+E       -- Create project table
+E       CREATE TABLE project (
+E           id INTEGER PRIMARY KEY AUTOINCREMENT,
+E           name TEXT NOT NULL,
+E           department_id INTEGER NOT NULL,
+E           FOREIGN KEY (department_id) REFERENCES department(id)
+E       );
+E       
+E       -- Create employee_project junction table
+E       CREATE TABLE employee_project (
+E           employee_id INTEGER NOT NULL,
+E           project_id INTEGER NOT NULL,
+E           PRIMARY KEY (employee_id, project_id),
+E           FOREIGN KEY (employee_id) REFERENCES employee(id),
+E           FOREIGN KEY (project_id) REFERENCES project(id)
+E       );
+E       
+E       -- Create salary_history table
+E       CREATE TABLE salary_history (
+E           id INTEGER PRIMARY KEY AUTOINCREMENT,
+E           employee_id INTEGER NOT NULL,
+E           change_date DATE NOT NULL,
+E           old_salary REAL,
+E           new_salary REAL NOT NULL,
+E           reason TEXT,
+E           FOREIGN KEY (employee_id) REFERENCES employee(id)
+E       );
+E       
+E       -- Create indexes
+E       CREATE INDEX idx_employee_department_id ON employee(department_id);
+E       CREATE INDEX idx_project_department_id ON project(department_id);
+E       CREATE INDEX idx_employee_project_employee_id ON employee_project(employee_id);
+E       CREATE INDEX idx_employee_project_project_id ON employee_project(project_id);
+E       CREATE INDEX idx_salary_history_employee_id ON salary_history(employee_id);
+E       ]
+E       (Background on this error at: https://sqlalche.me/e/20/f405)
+
+..\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\default.py:952: ProgrammingError
+=========================== short test summary info ===========================
+FAILED tests/s5/test_s5.py::TestS5Student::test_example - sqlalchemy.exc.Prog...
+============================== 1 failed in 0.88s ==============================
