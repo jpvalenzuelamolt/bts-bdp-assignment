@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
+from neo4j import GraphDatabase
 
 from bdi_api.settings import Settings
 
@@ -34,9 +35,17 @@ def create_person(person: PersonCreate) -> dict:
     Use the BDI_NEO4J_URL environment variable to configure the connection.
     Start Neo4J with: make neo4j
     """
-    # TODO: Connect to Neo4J using neo4j.GraphDatabase.driver(settings.neo4j_url, auth=(settings.neo4j_user, settings.neo4j_password))
-    # TODO: Create a Person node with the given properties
-    # TODO: Return {"status": "ok", "name": person.name}
+    driver = GraphDatabase.driver(settings.neo4j_url, auth=(settings.neo4j_user, settings.neo4j_password))
+    try:
+        with driver.session() as session:
+            session.run(
+                "CREATE (p:Person {name: $name, city: $city, age: $age})",
+                name=person.name,
+                city=person.city,
+                age=person.age
+            )
+    finally:
+        driver.close()
     return {"status": "ok", "name": person.name}
 
 
@@ -46,10 +55,21 @@ def list_persons() -> list[dict]:
 
     Each result should include: name, city, age.
     """
-    # TODO: Connect to Neo4J
-    # TODO: MATCH (p:Person) RETURN p
-    # TODO: Return list of dicts with name, city, age
-    return []
+    driver = GraphDatabase.driver(settings.neo4j_url, auth=(settings.neo4j_user, settings.neo4j_password))
+    try:
+        with driver.session() as session:
+            result = session.run("MATCH (p:Person) RETURN p")
+            persons = [
+                {
+                    "name": record["p"]["name"],
+                    "city": record["p"]["city"],
+                    "age": record["p"]["age"]
+                }
+                for record in result
+            ]
+            return persons
+    finally:
+        driver.close()
 
 
 @s7.get("/graph/person/{name}/friends")
@@ -59,11 +79,30 @@ def get_friends(name: str) -> list[dict]:
     Returns all persons connected by a FRIENDS_WITH relationship (any direction).
     If person not found, return 404.
     """
-    # TODO: Connect to Neo4J
-    # TODO: First check if person exists, return 404 if not
-    # TODO: MATCH (p:Person {name: name})-[:FRIENDS_WITH]-(friend:Person)
-    # TODO: Return list of friend dicts with name, city, age
-    raise HTTPException(status_code=404, detail=f"Person '{name}' not found")
+    driver = GraphDatabase.driver(settings.neo4j_url, auth=(settings.neo4j_user, settings.neo4j_password))
+    try:
+        with driver.session() as session:
+            # Check if person exists
+            check_result = session.run("MATCH (p:Person {name: $name}) RETURN p", name=name)
+            if not check_result.single():
+                raise HTTPException(status_code=404, detail=f"Person '{name}' not found")
+            
+            # Get friends
+            result = session.run(
+                "MATCH (p:Person {name: $name})-[:FRIENDS_WITH]-(friend:Person) RETURN friend",
+                name=name
+            )
+            friends = [
+                {
+                    "name": record["friend"]["name"],
+                    "city": record["friend"]["city"],
+                    "age": record["friend"]["age"]
+                }
+                for record in result
+            ]
+            return friends
+    finally:
+        driver.close()
 
 
 @s7.post("/graph/relationship")
@@ -72,10 +111,27 @@ def create_relationship(rel: RelationshipCreate) -> dict:
 
     Both persons must exist. Returns 404 if either is not found.
     """
-    # TODO: Connect to Neo4J
-    # TODO: Verify both persons exist
-    # TODO: CREATE (a)-[:FRIENDS_WITH]->(b)
-    # TODO: Return {"status": "ok", "from": rel.from_person, "to": rel.to_person}
+    driver = GraphDatabase.driver(settings.neo4j_url, auth=(settings.neo4j_user, settings.neo4j_password))
+    try:
+        with driver.session() as session:
+            # Verify both persons exist
+            from_result = session.run("MATCH (p:Person {name: $name}) RETURN p", name=rel.from_person)
+            if not from_result.single():
+                raise HTTPException(status_code=404, detail=f"Person '{rel.from_person}' not found")
+            
+            to_result = session.run("MATCH (p:Person {name: $name}) RETURN p", name=rel.to_person)
+            if not to_result.single():
+                raise HTTPException(status_code=404, detail=f"Person '{rel.to_person}' not found")
+            
+            # Create relationship
+            session.run(
+                "MATCH (a:Person {name: $from_person}), (b:Person {name: $to_person}) "
+                "CREATE (a)-[:FRIENDS_WITH]->(b)",
+                from_person=rel.from_person,
+                to_person=rel.to_person
+            )
+    finally:
+        driver.close()
     return {"status": "ok", "from": rel.from_person, "to": rel.to_person}
 
 
@@ -89,8 +145,34 @@ def get_recommendations(name: str) -> list[dict]:
 
     Each result should include: name, city, mutual_friends (count).
     """
-    # TODO: Connect to Neo4J
-    # TODO: First check if person exists, return 404 if not
-    # TODO: Find friends-of-friends not already friends
-    # TODO: Count mutual friends and sort descending
-    raise HTTPException(status_code=404, detail=f"Person '{name}' not found")
+    driver = GraphDatabase.driver(settings.neo4j_url, auth=(settings.neo4j_user, settings.neo4j_password))
+    try:
+        with driver.session() as session:
+            # Check if person exists
+            check_result = session.run("MATCH (p:Person {name: $name}) RETURN p", name=name)
+            if not check_result.single():
+                raise HTTPException(status_code=404, detail=f"Person '{name}' not found")
+            
+            # Find friends-of-friends who are NOT already direct friends
+            result = session.run(
+                """
+                MATCH (p:Person {name: $name})-[:FRIENDS_WITH]-(friend:Person)-[:FRIENDS_WITH]-(recommendation:Person)
+                WHERE recommendation.name <> $name
+                AND NOT (p)-[:FRIENDS_WITH]-(recommendation)
+                WITH recommendation, COUNT(DISTINCT friend) as mutual_friends
+                RETURN recommendation.name as name, recommendation.city as city, mutual_friends
+                ORDER BY mutual_friends DESC
+                """,
+                name=name
+            )
+            recommendations = [
+                {
+                    "name": record["name"],
+                    "city": record["city"],
+                    "mutual_friends": record["mutual_friends"]
+                }
+                for record in result
+            ]
+            return recommendations
+    finally:
+        driver.close()
